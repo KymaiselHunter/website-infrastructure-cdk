@@ -1,8 +1,10 @@
+// generic aws and cdk stuff
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
+// lambda and api gatewat stuff
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
@@ -11,6 +13,13 @@ import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { CfnOutput } from 'aws-cdk-lib';
 import { LambdaDataSource } from 'aws-cdk-lib/aws-appsync';
 import { LAMBDA_NODEJS_USE_LATEST_RUNTIME } from 'aws-cdk-lib/cx-api';
+
+// rds database stuff
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as rds from 'aws-cdk-lib/aws-rds';
+
+import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { ResourceExplorer2 } from 'aws-sdk';
 
 export class WebsiteInfrastructureCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -99,5 +108,56 @@ export class WebsiteInfrastructureCdkStack extends cdk.Stack {
       value: httpAPI.url ?? 'No URL found',
       description: 'Base URL for the http api gateway',
     });
+
+    // =============
+    // aws rds stuffs
+
+    // all secutiry stuff
+    // find defualt vps
+    const vpc = ec2.Vpc.fromLookup(this, "DefaultVPC", {
+      isDefault: true,
+    });
+
+    // create a secutiry group for MySql Access (firewall type-scrit)
+    const dbSecurityGroup = new ec2.SecurityGroup(this, 'DBSecurityGroup', {
+      vpc,
+      allowAllOutbound: true,
+    });
+
+    // Allow inbound MySql traffic on port 3306 (dev only)
+    dbSecurityGroup .addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2. Port.tcp(3306),
+      'Allow public MySql (only for development)'
+    );
+
+    // now the actual icreation of the rds MySql Instance
+    const dbInstance = new rds.DatabaseInstance(this, 'ImageGalleryDB', {
+      engine: rds.DatabaseInstanceEngine.mysql({ version: rds.MysqlEngineVersion.VER_8_0_36}),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+      vpc, 
+      vpcSubnets: {
+        subnetType: ec2. SubnetType.PUBLIC, // make it connectable for development
+      },
+      publiclyAccessible: true, // allows to connect via workbench/CLI
+      securityGroups: [dbSecurityGroup],
+      credentials: rds.Credentials.fromGeneratedSecret('dbadmin'), // secrets manager auto handles this
+      allocatedStorage: 20, // in gigabytes
+      maxAllocatedStorage: 100, // upperbound scaling for starage
+      backupRetention: Duration.days(7),
+      multiAz: false,
+      removalPolicy: RemovalPolicy.DESTROY,
+      deletionProtection: false,
+    });
+
+    // prints to get link for rds database
+    new cdk.CfnOutput(this, 'ImageGalleryDBEndpoint', {
+      value: dbInstance.dbInstanceEndpointAddress,
+    });
+
+    new cdk.CfnOutput(this, 'ImageGalleryDBSecretArn', {
+      value: dbInstance.secret!.secretArn,
+    });
+
   }
 }
