@@ -28,11 +28,19 @@ export class WebsiteInfrastructureCdkStack extends cdk.Stack {
     // The code that defines your stack goes here
     // =====================
     // s3 Bucket
+    // initial instantation
+    
     const imageBucket = new s3.Bucket(this, 'ImageGalleryBucket', {
       versioned: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true
     });
+    
+    // const imageBucket = s3.Bucket.fromBucketName(
+    //   this, 
+    //   'ImageGalleryBucket', 
+    //   'websiteinfrastructurecdks-imagegallerybucketaf87b9-9mvgeg2eixah',
+    // );
 
     // DELETE AFTER DEVELOPMENT, ONLY ALLOW OUR DOMAIN
     imageBucket.addCorsRule({
