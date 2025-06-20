@@ -34,19 +34,38 @@ export class FrontendStack extends cdk.Stack {
         websiteBucket.grantRead(oai);
 
         // distribution via cloudfront
-        const distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
+        const FrontendProduction = new cloudfront.Distribution(this, 'FrontendProduction', {
             defaultBehavior: {
                 origin: new origins.S3Origin(websiteBucket, {
-                    originAccessIdentity: oai
+                    originAccessIdentity: oai,
+                    originPath: '/production',
                 }),
                 viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             },
             defaultRootObject: 'index.html',
         });
 
+        const FrontendMain = new cloudfront.Distribution(this, 'FrontendMain', {
+            defaultBehavior: {
+                origin: new origins.S3Origin(websiteBucket, {
+                    originAccessIdentity: oai,
+                    originPath: '/main'
+                }),
+                viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            },
+            defaultRootObject: 'index.html',
+        })
+
         // print url
-        new cdk.CfnOutput(this, 'CloudFrontURL',{
-            value: `https://${distribution.domainName}`,
+        new cdk.CfnOutput(this, 'CloudFront_Main_Info', {
+            description: 'Main Branch CloudFront Info',
+            value: `Main URL: https://${FrontendMain.domainName} | ID: ${FrontendMain.distributionId}`,
         });
+
+        new cdk.CfnOutput(this, 'CloudFront_Production_Info', {
+            description: 'Production Branch CloudFront Info',
+            value: `Production URL: https://${FrontendProduction.domainName} | ID: ${FrontendProduction.distributionId}`,
+        });
+
     }
 }
