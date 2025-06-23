@@ -167,5 +167,40 @@ export class WebsiteInfrastructureCdkStack extends cdk.Stack {
       value: dbInstance.secret!.secretArn,
     });
 
+
+    // rds proxy stuff
+    const dbTestFunction = new lambda.Function(this, "DBTestFunction", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      code: lambda.Code.fromAsset('lambdas/db-test'),
+      handler: 'index.handler',
+      memorySize: 256,
+      timeout: Duration.seconds(10),
+      environment: {
+        DB_HOST: dbInstance.dbInstanceEndpointAddress,
+        DB_USER: dbInstance.secret!.secretValueFromJson('username').unsafeUnwrap(), // must change later, this is unsafe
+        DB_PASSWORD: dbInstance.secret!.secretValueFromJson('password').unsafeUnwrap(),
+        DB_NAME: 'ImageGalleryDB',
+      },
+      allowPublicSubnet: true,
+      vpc, 
+      securityGroups: [dbSecurityGroup],
+    });
+
+    const dbTestIntegration = new integrations.HttpLambdaIntegration(
+      'DBtestIntegration',
+      dbTestFunction,
+    );
+
+    httpAPI.addRoutes({
+      path: '/dbtest',
+      methods: [apigatewayv2.HttpMethod.GET],
+      integration: dbTestIntegration,
+    });
+
+    new cdk.CfnOutput(this, 'DBTestEndpoint', {
+      value: `${httpAPI.url}dbtest`,   // httpAPI.url already ends with “/”
+      description: 'Invoke URL for /dbtest Lambda -> RDS test',
+    });
+
   }
 }
